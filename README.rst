@@ -3,11 +3,11 @@ plex-api
 ========
 
 
-.. image:: https://img.shields.io/pypi/v/plex_api.svg
-        :target: https://pypi.python.org/pypi/plex_api
+.. image:: https://img.shields.io/pypi/v/py_plex_api.svg
+        :target: https://pypi.python.org/pypi/py_plex_api
 
-.. image:: https://img.shields.io/travis/paul-armstrong-dev/plex_api.svg
-        :target: https://travis-ci.com/paul-armstrong-dev/plex_api
+.. image:: https://img.shields.io/travis/paul-armstrong-dev/py_plex_api.svg
+        :target: https://travis-ci.com/paul-armstrong-dev/py_plex_api
 
 .. image:: https://readthedocs.org/projects/plex-api/badge/?version=latest
         :target: https://plex-api.readthedocs.io/en/latest/?version=latest

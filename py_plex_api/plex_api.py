@@ -6,7 +6,7 @@ import concurrent.futures
 from typing import List, Dict
 
 
-class PlexAPI:
+class PyPlexAPI:
     def __init__(self, ip_address: str, port: str, plex_api_token: str):
         """
 
