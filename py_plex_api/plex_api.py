@@ -18,16 +18,12 @@ class PyPlexAPI:
         :type plex_api_token: str
         """
         self.class_name = type(self).__name__
-        logger.info(
-            "{class_name} initialised".format(class_name=self.class_name))
+        logger.info(f"{self.class_name} initialised")
 
-        self.ip_address = ip_address
-        self.port = port
         # created like this so it can be passed as params
         self.token = {"X-Plex-Token": plex_api_token}
         
-        self.server_url = "http://{ip}:{port}".format(ip=self.ip_address,
-                                                      port=self.port)
+        self.server_url = f"http://{ip_address}:{port}"
         # No return types on the below, throws conn error if unsuccessful
         self._test_library_exists()
 
@@ -115,14 +111,13 @@ class PyPlexAPI:
         logger.info("Getting library sections")
         library_sections = self.get_keys_from_plex_api(plex_endpoint="/library/sections")
         for section in library_sections:
-            section_endpoint = "/library/sections/{id}/refresh".format(id=section["key"])
+            section_endpoint = f"/library/sections/{section['key']}/refresh"
             api_uri = self.server_url + section_endpoint
             response = requests.get(api_uri, params=self.token)
             if response.status_code == 200:
-                logger.success("Successfully started refresh for {name}".format(name=section["title"]))
+                logger.success(f"Successfully started refresh for {section['title']}")
             else:
-                raise ConnectionError(
-                    "Refresh failed for {name}".format(name=section["title"]))
+                raise ConnectionError(f"Refresh failed for {section['title']}")
         return True
     
     def get_all_episode_details(self, endpoint: str) -> List[Dict]:
