@@ -154,7 +154,7 @@ class PyPlexAPI:
                 all_episodes.append(episode_details)
         return all_episodes
     
-    def get_all_show_details(self, show_endpoint: str) -> Dict:
+    def get_all_show_details_single_dict(self, show_endpoint: str) -> Dict:
         """
 
         :param show_endpoint:
@@ -193,6 +193,47 @@ class PyPlexAPI:
         
         return show_details
 
+    def get_all_show_details(self, show_endpoint: str) -> Dict:
+        """
+
+        :param show_endpoint:
+        :return: show_summary
+                 all_season_details
+                 all_episode_details
+        """
+        api_url = self.server_url + show_endpoint
+        response = requests.get(url=api_url, params=self.token)
+
+        response_xml_root = ElementTree.fromstring(response.content)
+        show_details = {
+            "show_summary": response_xml_root.attrib.get("summary"),
+            "show_title1" : response_xml_root.attrib.get("title2"),
+            "show_title2" : response_xml_root.attrib.get("title1"),
+            "year"        : response_xml_root.attrib.get("parentYear"),
+            "key"         : show_endpoint
+        }
+        all_season_details = []
+        all_episode_details = []
+        for child in response_xml_root:
+            if child.attrib.get("type") == "season":
+
+                season_details = {
+                    "title"    : child.attrib.get("title"),
+                    "type"     : child.attrib.get("type"),
+                    "updatedAt": child.attrib.get("updatedAt"),
+                    "addedAt"  : child.attrib.get("addedAt"),
+                    "key"      : child.attrib.get("key")
+                }
+
+                all_season_details.append(season_details)
+
+                episodes_endpoint = child.attrib.get("key")
+                all_episode_details.append(self.get_all_episode_details(endpoint=episodes_endpoint))
+
+        show_details["season_details"] = all_season_details
+        show_details["episode_details"] = all_episode_details
+        return show_details
+
     def get_section_contents(self, content: Dict) -> Dict:
         """
 
@@ -206,7 +247,27 @@ class PyPlexAPI:
         if content_type == "movie":
             return self.get_movie_details(content_key)
         elif content_type == "show":
-            return self.get_all_show_details(content_key)
+            return self.get_all_show_details_single_dict(content_key)
+
+    def get_all_library_show_details(self):
+        logger.info("Getting library sections")
+        library_sections = [section for section in self.get_keys_from_plex_api(plex_endpoint="/library/sections") if
+                            section['title'] == 'TV Shows']
+
+        for section_contents in library_sections:
+            all_show_details = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_url = {executor.submit(self.get_section_contents, content): content for
+                                 content in
+                                 section_contents}
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        data = future.result()
+                    except Exception as exc:
+                        print('%r generated an exception: %s' % (url, exc))
+                    else:
+                        all_show_details.append(data)
 
     def get_all_plex_info(self) -> (List, List):
         """
