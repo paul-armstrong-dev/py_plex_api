@@ -1,10 +1,11 @@
 from xml.etree import ElementTree
 import requests
 from loguru import logger
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
 from typing import List, Dict
+from tqdm import tqdm
 
+logger.remove(0)
+logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True,)
 
 class PyPlexAPI:
     def __init__(self, ip_address: str, port: str, plex_api_token: str):
@@ -154,45 +155,6 @@ class PyPlexAPI:
                 all_episodes.append(episode_details)
         return all_episodes
     
-    def get_all_show_details_single_dict(self, show_endpoint: str) -> Dict:
-        """
-
-        :param show_endpoint:
-        :return: show_summary
-                 all_season_details
-                 all_episode_details
-        """
-        api_url = self.server_url + show_endpoint
-        response = requests.get(url=api_url, params=self.token)
-        
-        response_xml_root = ElementTree.fromstring(response.content)
-        show_details = {
-                "show_summary": response_xml_root.attrib.get("summary"),
-                "show_title1": response_xml_root.attrib.get("title2"),
-                "show_title2": response_xml_root.attrib.get("title1"),
-                "year": response_xml_root.attrib.get("parentYear"),
-                "key": show_endpoint
-        }
-        all_season_details = []
-        for child in response_xml_root:
-            if child.attrib.get("type") == "season":
-                episodes_endpoint = child.attrib.get("key")
-                all_episode_details = self.get_all_episode_details(endpoint=episodes_endpoint)
-
-                season_details = {
-                        "title": child.attrib.get("title"),
-                        "type": child.attrib.get("type"),
-                        "updatedAt": child.attrib.get("updatedAt"),
-                        "addedAt": child.attrib.get("addedAt"),
-                        "episodes": all_episode_details,
-                        "key": child.attrib.get("key")
-                }
-
-                all_season_details.append(season_details)
-        show_details["season_details"] = all_season_details
-        
-        return show_details
-
     def get_all_show_details(self, show_endpoint: str) -> Dict:
         """
 
@@ -242,34 +204,40 @@ class PyPlexAPI:
         :return:
         :rtype:
         """
-        content_key = content["key"]
-        content_type = content["type"]
+        content_key = content.get("key")
+        content_type = content.get("type")
         if content_type == "movie":
             return self.get_movie_details(content_key)
         elif content_type == "show":
-            return self.get_all_show_details_single_dict(content_key)
+            return self.get_all_show_details(content_key)
 
-    def get_all_library_show_details(self):
-        logger.info("Getting library sections")
-        library_sections = [section for section in self.get_keys_from_plex_api(plex_endpoint="/library/sections") if
-                            section['title'] == 'TV Shows']
+    def get_plex_section_content(self, library_section_name: str):
+        """
 
-        for section_contents in library_sections:
-            all_show_details = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                future_to_url = {executor.submit(self.get_section_contents, content): content for
-                                 content in
-                                 section_contents}
-                for future in concurrent.futures.as_completed(future_to_url):
-                    url = future_to_url[future]
-                    try:
-                        data = future.result()
-                    except Exception as exc:
-                        print('%r generated an exception: %s' % (url, exc))
-                    else:
-                        all_show_details.append(data)
+        """
+        library_section = [section for section in self.get_keys_from_plex_api(plex_endpoint="/library/sections") if
+                           section['title'] == library_section_name]
 
-    def get_all_plex_info(self) -> (List, List):
+        if len(library_section) > 0:
+            section_details = library_section[0]
+        else:
+            logger.error(f"No results found for section {library_section_name}")
+            return
+
+        section_endpoint = f"/library/sections/{section_details['key']}/all"
+        section_contents = self.get_keys_from_plex_api(section_endpoint)
+
+        return [self.get_section_contents(section_contents[i]) for i in tqdm(range(len(section_contents)))]
+
+    def get_movie_info(self):
+        logger.info("Getting movie info")
+        return self.get_plex_section_content("Movies")
+
+    def get_show_info(self):
+        logger.info("Getting show info")
+        return self.get_plex_section_content("TV Shows")
+
+    def get_all_plex_info(self) -> (List):
         """
         
         :return:
@@ -278,45 +246,12 @@ class PyPlexAPI:
         # Sections
         
         logger.info("Getting library sections")
-        library_sections = self.get_keys_from_plex_api(plex_endpoint="/library/sections")
-        movie_details = []
-        all_show_details = []
-        # Contents
-        for section in library_sections:
-            logger.info(f"Getting info in {section['title']}")
-            section_endpoint = f"/library/sections/{section['key']}/all"
-            section_contents = self.get_keys_from_plex_api(section_endpoint)
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        all_data = []
 
-                if section['title'] == 'Movies':
+        all_data.append({"movies": self.get_movie_info()})
+        all_data.append({"shows": self.get_show_info()})
 
-                    future_to_url = {executor.submit(self.get_section_contents, content): content for
-                                         content in
-                                         section_contents}
-                    for future in concurrent.futures.as_completed(future_to_url):
-                        url = future_to_url[future]
-                        try:
-                            data = future.result()
-                        except Exception as exc:
-                            print('%r generated an exception: %s' % (url, exc))
-                        else:
-                            movie_details.append(data)
-
-                elif section['title'] == 'TV Shows':
-
-                    future_to_url = {executor.submit(self.get_section_contents, content): content for
-                                         content in
-                                         section_contents}
-                    for future in concurrent.futures.as_completed(future_to_url):
-                        url = future_to_url[future]
-                        try:
-                            data = future.result()
-                        except Exception as exc:
-                            print('%r generated an exception: %s' % (url, exc))
-                        else:
-                            all_show_details.append(data)
-
-        return movie_details, all_show_details
+        return all_data
 
 
