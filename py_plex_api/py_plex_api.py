@@ -237,7 +237,7 @@ class PyPlexAPI:
         logger.info("Getting show info")
         return self.get_plex_section_content("TV Shows")
 
-    def get_all_plex_info(self) -> (List):
+    def get_all_plex_info(self) -> (Dict):
         """
         
         :return:
@@ -247,10 +247,10 @@ class PyPlexAPI:
         
         logger.info("Getting library sections")
 
-        all_data = []
+        all_data = {}
 
-        all_data.append({"movies": self.get_movie_info()})
-        all_data.append({"shows": self.get_show_info()})
+        all_data["movies"] = self.get_movie_info()
+        all_data["shows"] = self.get_show_info()
 
         return all_data
 
